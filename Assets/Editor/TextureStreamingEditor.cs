@@ -4,10 +4,12 @@ using UnityEditor;
 using System.IO;
 using System.Linq;
 
-public class MipmapAndStreamingWindow : EditorWindow
+public class TextureStreamingEditor : EditorWindow
 {
     int totalTextureCount;
     int mipStreamingEnabledCount;
+
+    GUILayoutOption buttionHeight = GUILayout.Height(40);
 
     List<string> folderPaths = new List<string>(); // 新增一个数组用于存储目录列表
     int selectedFolderIndex = 0; // 选中的目录索引
@@ -15,60 +17,59 @@ public class MipmapAndStreamingWindow : EditorWindow
 
     Vector2 scrollPosition = Vector2.zero;
 
-    [MenuItem("Window/Texture Streaming Settings")]
-    static void OpenWindow()
-    {
-        MipmapAndStreamingWindow window = GetWindow<MipmapAndStreamingWindow>();
-        window.Show();
-    }
-
     int count;
 
     string filePath = "Assets/Editor/TextureStreamingList.txt";
 
+    [MenuItem("Window/Texture Streaming Editor")]
+    static void OpenWindow()
+    {
+        TextureStreamingEditor editor = GetWindow<TextureStreamingEditor>();
+        editor.Show();
+    }
+
+    // 在OnGUI之前调用，初始化目录列表
+    void OnEnable()
+    {
+        Load();
+    }
+
     void OnGUI()
     {
-        GUILayout.Label("Mipmap and Streaming Settings", EditorStyles.boldLabel);
+        GUILayout.Label("Texture Streaming Settings", EditorStyles.boldLabel);
 
         // 添加文本框
         GUILayout.Label($"File Path: {filePath}");
 
-        if (folderPaths == null || count != folderPaths.Count)
-        {
-            count = folderPaths?.Count ?? 0;
-            Debug.Log($"当前数量：{count}");
-            count = folderPaths.Count;
-        }
-
         GUILayout.BeginHorizontal();
 
         // 新增按钮，用于增加目录
-        if (GUILayout.Button("Add Folder"))
+        if (GUILayout.Button("Add Folder", buttionHeight))
         {
             // 使用 "Use Selected Folder" 的点击选中逻辑
-            UseSelectedFolder();
+            AddFolder();
             Save();
         }
         // 新增按钮，用于删除目录
-        if (GUILayout.Button("Remove Folder"))
+        if (GUILayout.Button("Remove Folder", buttionHeight))
         {
             RemoveFolder();
             Save();
         }
 
         // 刷新按钮
-        if (GUILayout.Button("Refresh"))
+        if (GUILayout.Button("Refresh", buttionHeight))
         {
             RefreshCounts(selectedFolder);
         }
 
         // 应用设置按钮
-        if (GUILayout.Button("Apply"))
+        if (GUILayout.Button("Enable", buttionHeight))
         {
             ApplyMipmapsAndStreaming(selectedFolder);
         }
         // 关闭按钮
-        if (GUILayout.Button("Revert"))
+        if (GUILayout.Button("Disable", buttionHeight))
         {
             DisableMipmapsAndStreaming(selectedFolder);
         }
@@ -107,10 +108,27 @@ public class MipmapAndStreamingWindow : EditorWindow
         GUILayout.Space(10);
     }
 
-    // 在OnGUI之前调用，初始化目录列表
-    void OnEnable()
+    // 将当前所选中的Project窗口的目录赋值给Folder path
+    void AddFolder()
     {
-        Load();
+        UnityEngine.Object[] selectedObjects = Selection.GetFiltered(typeof(UnityEngine.Object), SelectionMode.Assets);
+
+        if (selectedObjects.Length > 0)
+        {
+            string selectedPath = AssetDatabase.GetAssetPath(selectedObjects[0]);
+            if (Directory.Exists(selectedPath))
+            {
+                folderPaths.Add(selectedPath);
+            }
+            else
+            {
+                Debug.LogWarning("Please select a folder in the Project window.");
+            }
+        }
+        else
+        {
+            Debug.LogWarning("Please select a folder in the Project window.");
+        }
     }
 
     void RemoveFolder()
@@ -130,10 +148,8 @@ public class MipmapAndStreamingWindow : EditorWindow
 
     void RefreshCounts(string folderPath)
     {
-        // 获取指定目录下的所有贴图文件
-        string[] texturePaths = Directory.GetFiles(folderPath, "*.png", SearchOption.AllDirectories);
+        var texturePaths = FindTextures(folderPath);
 
-        totalTextureCount = texturePaths.Length;
         mipStreamingEnabledCount = 0;
 
         foreach (string texturePath in texturePaths)
@@ -149,12 +165,29 @@ public class MipmapAndStreamingWindow : EditorWindow
         }
     }
 
+    string[] FindTextures(string folderPath)
+    {
+        List<string> texList = new List<string>();
+
+        // 获取指定目录下的所有贴图文件（包括子目录）
+        string[] guids = AssetDatabase.FindAssets("t:Texture", new[] { folderPath });
+
+        foreach (string guid in guids)
+        {
+            // 转换Asset路径为实际文件系统路径
+            string fullPath = AssetDatabase.GUIDToAssetPath(guid);
+            texList.Add(fullPath);
+        }
+
+        totalTextureCount = texList.Count;
+        return texList.ToArray();
+    }
+
     void ApplyMipmapsAndStreaming(string folderPath)
     {
         // 获取指定目录下的所有贴图文件
-        string[] texturePaths = Directory.GetFiles(folderPath, "*.png", SearchOption.AllDirectories);
+        string[] texturePaths = FindTextures(folderPath);
 
-        totalTextureCount = texturePaths.Length;
         mipStreamingEnabledCount = 0;
 
         foreach (string texturePath in texturePaths)
@@ -183,13 +216,15 @@ public class MipmapAndStreamingWindow : EditorWindow
 
         // 保存更改
         AssetDatabase.SaveAssets();
-        Debug.Log("Mipmaps and Streaming settings applied to all textures in the specified folder.");
+        Debug.Log($"{mipStreamingEnabledCount} Textures Mipmaps and Streaming settings applied to all textures in {folderPath}.");
     }
 
     void DisableMipmapsAndStreaming(string folderPath)
     {
         // 获取指定目录下的所有贴图文件
-        string[] texturePaths = Directory.GetFiles(folderPath, "*.png", SearchOption.AllDirectories);
+        string[] texturePaths = FindTextures(folderPath);
+
+        var disableStreamingCount = 0;
 
         foreach (string texturePath in texturePaths)
         {
@@ -202,43 +237,16 @@ public class MipmapAndStreamingWindow : EditorWindow
                 textureImporter.mipmapEnabled = false;
                 textureImporter.streamingMipmaps = false;
 
-                // 记录禁用了 Mip Streaming 的贴图数量
-                if (textureImporter.streamingMipmaps)
-                {
-                    mipStreamingEnabledCount--;
-                }
-
                 // 应用设置
                 AssetDatabase.ImportAsset(texturePath);
+
+                disableStreamingCount++;
             }
         }
 
         // 保存更改
         AssetDatabase.SaveAssets();
-        Debug.Log("Mipmaps and Streaming settings disabled for all textures in the specified folder.");
-    }
-
-    // 将当前所选中的Project窗口的目录赋值给Folder path
-    void UseSelectedFolder()
-    {
-        UnityEngine.Object[] selectedObjects = Selection.GetFiltered(typeof(UnityEngine.Object), SelectionMode.Assets);
-
-        if (selectedObjects.Length > 0)
-        {
-            string selectedPath = AssetDatabase.GetAssetPath(selectedObjects[0]);
-            if (Directory.Exists(selectedPath))
-            {
-                folderPaths.Add(selectedPath);
-            }
-            else
-            {
-                Debug.LogWarning("Please select a folder in the Project window.");
-            }
-        }
-        else
-        {
-            Debug.LogWarning("Please select a folder in the Project window.");
-        }
+        Debug.Log($"{disableStreamingCount} Textures Mipmaps and Streaming settings disabled in {folderPath}.");
     }
 
     void Load()
