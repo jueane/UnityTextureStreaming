@@ -13,7 +13,22 @@ public class TextureStreamingEditor : EditorWindow
 
     List<string> folderPaths = new List<string>(); // 新增一个数组用于存储目录列表
     int selectedFolderIndex = 0; // 选中的目录索引
-    string selectedFolder => (folderPaths == null || folderPaths.Count < 1) ? null : folderPaths[selectedFolderIndex];
+    string selectedFolder => GetCurrentFolder();
+
+    string GetCurrentFolder()
+    {
+        if (folderPaths == null || folderPaths.Count == 0)
+            return null;
+
+        if (selectedFolderIndex >= folderPaths.Count)
+        {
+            selectedFolderIndex = folderPaths.Count - 1;
+        }
+
+        if (selectedFolderIndex < 0)
+            selectedFolderIndex = 0;
+        return folderPaths[selectedFolderIndex];
+    }
 
     Vector2 scrollPosition = Vector2.zero;
 
@@ -210,7 +225,7 @@ public class TextureStreamingEditor : EditorWindow
                 }
 
                 // 应用设置
-                AssetDatabase.ImportAsset(texturePath);
+                // AssetDatabase.ImportAsset(texturePath);
             }
         }
 
@@ -238,7 +253,7 @@ public class TextureStreamingEditor : EditorWindow
                 textureImporter.streamingMipmaps = false;
 
                 // 应用设置
-                AssetDatabase.ImportAsset(texturePath);
+                // AssetDatabase.ImportAsset(texturePath);
 
                 disableStreamingCount++;
             }
