@@ -7,6 +7,7 @@ using System.Linq;
 public class TextureStreamingEditor : EditorWindow
 {
     int totalTextureCount;
+    int totalDefault2DTextureCount;
     int mipStreamingEnabledCount;
 
     GUILayoutOption buttionHeight = GUILayout.Height(40);
@@ -95,7 +96,7 @@ public class TextureStreamingEditor : EditorWindow
 
         // 显示统计信息
         GUILayout.Label("Total Textures: " + totalTextureCount);
-        GUILayout.Label("Mip Streaming Enabled: " + mipStreamingEnabledCount);
+        GUILayout.Label($"Mip Streaming Enabled: {mipStreamingEnabledCount}/{totalDefault2DTextureCount}");
 
         GUILayout.Space(20);
         GUILayout.Label("Folder list", EditorStyles.boldLabel);
@@ -166,16 +167,22 @@ public class TextureStreamingEditor : EditorWindow
         var texturePaths = FindTextures(folderPath);
 
         mipStreamingEnabledCount = 0;
+        totalDefault2DTextureCount = 0;
 
         foreach (string texturePath in texturePaths)
         {
             // 导入贴图
             TextureImporter textureImporter = AssetImporter.GetAtPath(texturePath) as TextureImporter;
 
-            // 记录启用了 Mip Streaming 的贴图数量
-            if (textureImporter != null && textureImporter.streamingMipmaps)
+            if (IsValid(textureImporter))
             {
-                mipStreamingEnabledCount++;
+                totalDefault2DTextureCount++;
+
+                // 记录启用了 Mip Streaming 的贴图数量
+                if (textureImporter != null && textureImporter.streamingMipmaps)
+                {
+                    mipStreamingEnabledCount++;
+                }
             }
         }
     }
@@ -210,7 +217,7 @@ public class TextureStreamingEditor : EditorWindow
             // 导入贴图
             TextureImporter textureImporter = AssetImporter.GetAtPath(texturePath) as TextureImporter;
 
-            if (textureImporter != null)
+            if (IsValid(textureImporter))
             {
                 // 启用 Mipmaps
                 textureImporter.mipmapEnabled = true;
@@ -246,7 +253,7 @@ public class TextureStreamingEditor : EditorWindow
             // 导入贴图
             TextureImporter textureImporter = AssetImporter.GetAtPath(texturePath) as TextureImporter;
 
-            if (textureImporter != null)
+            if (IsValid(textureImporter))
             {
                 // 禁用 Mipmaps 和 Mip Streaming
                 textureImporter.mipmapEnabled = false;
@@ -262,6 +269,11 @@ public class TextureStreamingEditor : EditorWindow
         // 保存更改
         AssetDatabase.SaveAssets();
         Debug.Log($"{disableStreamingCount} Textures Mipmaps and Streaming settings disabled in {folderPath}.");
+    }
+
+    bool IsValid(TextureImporter textureImporter)
+    {
+        return textureImporter != null && textureImporter.textureType == TextureImporterType.Default && textureImporter.textureShape == TextureImporterShape.Texture2D;
     }
 
     void Load()
